@@ -1,13 +1,49 @@
-﻿import * as path from 'path';
+#!/usr/bin/env node
+import * as fs from 'fs';
+import * as path from 'path';
 import { exists, mkdirp, readText, writeText } from './io';
 import { splitSlnProjects, parseWebsites, parseCSharpProjects } from './parser';
 import { resolveDlls, materializeRefs } from './resolver';
 import { generateFakeCsproj } from './generator';
 import { buildFakeSln } from './sln';
 import { CliOptions, Mode } from './types';
+import { generateWebFormsShimFiles } from './webformsShim';
+
+function collectWebsiteBinHintPaths(websiteAbs: string, websiteRelFromFake: string, hintByDll: Map<string, string>): void {
+  const binDirAbs = path.join(websiteAbs, 'Bin');
+  if (!exists(binDirAbs)) return;
+
+  const existing = new Set(Array.from(hintByDll.keys(), key => key.toLowerCase()));
+  for (const name of fs.readdirSync(binDirAbs)) {
+    if (!/\.dll$/i.test(name)) continue;
+    const key = name.toLowerCase();
+    if (existing.has(key)) continue;
+
+    hintByDll.set(name, path.join(websiteRelFromFake, 'Bin', name).replace(/\//g, '\\'));
+    existing.add(key);
+  }
+}
 
 function usage(): void {
-  console.log('用法: sln2csproj <path-to-sln> [--pick N] [--outDir tools/_intellisense] [--mode copy|link] [--check] [--verbose] [--help]');
+  console.log([
+    'Usage:',
+    '  sln2csproj <solution.sln> [options]',
+    '',
+    'Options:',
+    '  --pick <N>        Select Nth Website project if multiple exist',
+    '  --outDir <dir>    Output directory (default: tools/_intellisense)',
+    '  --mode <copy|link>',
+    '                    copy: copy referenced DLLs (default)',
+    '                    link: reference original paths only',
+    '  --check           List Website projects and exit',
+    '  --verbose         Print detailed resolution info',
+    '  -h, --help        Show help',
+    '',
+    'Examples:',
+    '  sln2csproj MyApp.sln',
+    '  sln2csproj MyApp.sln --mode link --verbose',
+    '  sln2csproj MyApp.sln --check',
+  ].join('\n'));
 }
 
 function parseArgs(argv: string[]): CliOptions {
@@ -43,7 +79,7 @@ function main() {
 
   const slnAbs = path.resolve(opt.slnPath);
   if (!exists(slnAbs)) {
-    console.error(`❌ 找不到檔案: ${slnAbs}`);
+    console.error(`File not found: ${slnAbs}`);
     process.exit(1);
   }
 
@@ -56,19 +92,19 @@ function main() {
 
   const websites = parseWebsites(blocks);
   if (websites.length === 0) {
-    console.error('❌ 找不到 Website Project（這個 .sln 可能不是 WebSite 類型）');
+    console.error('No Website Project found in the solution.');
     process.exit(1);
   }
 
   if (opt.check) {
-    console.log('✅ Website Projects:');
+    console.log('Website Projects:');
     websites.forEach((w, i) => {
       console.log(`${i + 1}. ${w.name}`);
       console.log(`   PhysicalPath: ${w.physicalPath}`);
       console.log(`   Framework: ${w.targetFramework}`);
     });
     if (websites.length > 1) {
-      console.log('\n💡 多個 Website project，請用 --pick N 指定');
+      console.log('\nMultiple Website projects found. Use --pick N to choose one.');
       process.exit(2);
     }
     process.exit(0);
@@ -78,11 +114,8 @@ function main() {
   const website = websites[Math.min(pickIndex, websites.length - 1)];
 
   const csharpProjects = parseCSharpProjects(blocks);
-
-  // Resolve dll absolute locations (best effort)
   resolveDlls(slnDir, website, csharpProjects);
 
-  // Prepare fake output folder: tools/_intellisense/<WebsiteName>/
   const safeName = website.name.replace(/[<>:"/\\|?*]+/g, '_');
   const fakeDirAbs = path.join(outRootAbs, safeName);
   mkdirp(fakeDirAbs);
@@ -90,10 +123,14 @@ function main() {
   const websiteAbs = path.join(slnDir, website.physicalPath);
   const websiteRelFromFake = path.relative(fakeDirAbs, websiteAbs).replace(/\//g, '\\') || '.';
 
+  for (const ref of website.projectReferences) {
+    if (!ref.projectPath) continue;
+    ref.projectPath = path.relative(fakeDirAbs, path.resolve(slnDir, ref.projectPath)).replace(/\//g, '\\') || '.';
+  }
+
   const mode: Mode = opt.mode || 'copy';
   const refsDirAbs = path.join(fakeDirAbs, 'refs');
 
-  // Decide hint paths
   const hintByDll = materializeRefs(
     mode,
     fakeDirAbs,
@@ -102,28 +139,33 @@ function main() {
     websiteRelFromFake,
     website
   );
+  collectWebsiteBinHintPaths(websiteAbs, websiteRelFromFake, hintByDll);
 
-  // Generate csproj at fake folder root
-  const csprojContent = generateFakeCsproj(website, websiteRelFromFake, hintByDll);
+  const shimResult = generateWebFormsShimFiles(fakeDirAbs, websiteAbs);
+  const csprojContent = generateFakeCsproj(
+    website,
+    websiteRelFromFake,
+    hintByDll,
+    shimResult.generatedDirName
+  );
   const csprojPath = path.join(fakeDirAbs, `${safeName}.intellisense.csproj`);
   writeText(csprojPath, csprojContent);
 
-  // Generate fake sln next to csproj
   const fakeSlnContent = buildFakeSln(slnContent, slnDir, fakeDirAbs, website, csprojPath);
   const fakeSlnPath = path.join(fakeDirAbs, `fake_${safeName}.sln`);
   writeText(fakeSlnPath, fakeSlnContent);
 
-  // Print summary
-  console.log(`✅ Website: ${website.name}`);
+  console.log(`Website: ${website.name}`);
   console.log(`   PhysicalPath: ${website.physicalPath}`);
   console.log(`   Framework: ${website.targetFramework}`);
-  console.log(`✅ Output: ${csprojPath}`);
+  console.log(`Output: ${csprojPath}`);
   console.log(`   Mode: ${mode}`);
   console.log(`   Refs: ${website.projectReferences.length}`);
-  console.log(`✅ Fake SLN: ${fakeSlnPath}`);
+  console.log(`   Shim files: ${shimResult.generatedCount}`);
+  console.log(`Fake SLN: ${fakeSlnPath}`);
 
   if (opt.verbose) {
-    console.log('\n📦 Dependencies:');
+    console.log('\nDependencies:');
     for (const ref of website.projectReferences) {
       const hint = hintByDll.get(ref.dllName) || '(none)';
       console.log(`- ${ref.dllName}`);
@@ -132,8 +174,7 @@ function main() {
     }
   }
 
-  console.log('\n💡 VS Code: 開啟 tools/_intellisense/<WebsiteName>/ 這個資料夾即可（用完整包刪掉）。');
+  console.log('\nVS Code: open tools/_intellisense/<WebsiteName>/ and delete the folder when finished.');
 }
 
 main();
-
