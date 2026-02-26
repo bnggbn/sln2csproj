@@ -1,0 +1,19 @@
+﻿{
+  "name": "sln2csproj",
+  "version": "0.2.0",
+  "private": true,
+  "type": "commonjs",
+  "bin": {
+    "sln2csproj": "bin/sln2csproj.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "ts-node src/cli.ts",
+    "gen": "node bin/sln2csproj.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
