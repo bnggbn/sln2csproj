@@ -122,6 +122,11 @@ function main() {
   const websiteAbs = path.join(slnDir, website.physicalPath);
   const websiteRelFromFake = path.relative(fakeDirAbs, websiteAbs).replace(/\//g, '\\') || '.';
 
+  for (const ref of website.projectReferences) {
+    if (!ref.projectPath) continue;
+    ref.projectPath = path.relative(fakeDirAbs, path.resolve(slnDir, ref.projectPath)).replace(/\//g, '\\') || '.';
+  }
+
   const mode: Mode = opt.mode || 'copy';
   const refsDirAbs = path.join(fakeDirAbs, 'refs');
 

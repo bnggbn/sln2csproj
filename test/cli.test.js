@@ -65,7 +65,8 @@ test('CLI generates fake csproj and fake sln in a clean temp workspace', () => {
     assert.match(result.stdout, /Website: Web/);
     assert.match(result.stdout, /Mode: link/);
     assert.match(csproj, /<AssemblyName>Web<\/AssemblyName>/);
-    assert.ok(csproj.includes('..\\..\\Web\\Bin\\Library.dll'));
+    assert.match(csproj, /<ProjectReference Include="\.\.\\\.\.\\Library\\Library\.csproj">/);
+    assert.doesNotMatch(csproj, /<HintPath>\.\.\\\.\.\\Web\\Bin\\Library\.dll<\/HintPath>/);
     assert.ok(csproj.includes('..\\..\\Web\\Bin\\Newtonsoft.Json.dll'));
     assert.match(fakeSln, /"Web\.intellisense\.csproj"/);
     assert.ok(fakeSln.includes('"..\\..\\Library\\Library.csproj"'));

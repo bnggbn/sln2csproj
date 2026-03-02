@@ -40,15 +40,25 @@ test('generator emits hint paths and compile include patterns', () => {
     guid: '11111111-1111-1111-1111-111111111111',
     physicalPath: 'LegacySite',
     targetFramework: 'v4.8',
-    projectReferences: [{ guid: '22222222-2222-2222-2222-222222222222', dllName: 'Legacy.Lib.dll' }],
+    projectReferences: [{
+      guid: '22222222-2222-2222-2222-222222222222',
+      dllName: 'Legacy.Lib.dll',
+      projectPath: '..\\\\src\\\\Legacy.Lib\\\\Legacy.Lib.csproj',
+    }],
   };
-  const hintByDll = new Map([['Legacy.Lib.dll', 'refs\\\\Legacy.Lib.dll']]);
+  const hintByDll = new Map([
+    ['Legacy.Lib.dll', 'refs\\\\Legacy.Lib.dll'],
+    ['Newtonsoft.Json.dll', '..\\\\..\\\\LegacySite\\\\Bin\\\\Newtonsoft.Json.dll'],
+  ]);
 
   const xml = generateFakeCsproj(website, '..\\\\..\\\\LegacySite', hintByDll);
 
   assert.match(xml, /<TargetFrameworkVersion>v4\.8<\/TargetFrameworkVersion>/);
   assert.ok(xml.includes('<Compile Include="..\\..\\LegacySite\\**\\*.cs"'));
-  assert.match(xml, /<HintPath>refs\\\\Legacy\.Lib\.dll<\/HintPath>/);
+  assert.match(xml, /<ProjectReference Include="\.\.\\\\src\\\\Legacy\.Lib\\\\Legacy\.Lib\.csproj">/);
+  assert.match(xml, /<Project>\{22222222-2222-2222-2222-222222222222\}<\/Project>/);
+  assert.doesNotMatch(xml, /<HintPath>refs\\\\Legacy\.Lib\.dll<\/HintPath>/);
+  assert.match(xml, /<HintPath>\.\.\\\\\.\.\\\\LegacySite\\\\Bin\\\\Newtonsoft\.Json\.dll<\/HintPath>/);
 });
 
 test('fake sln rewrites website block to generated csproj', () => {

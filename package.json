@@ -1,6 +1,6 @@
 {
   "name": "sln2csproj",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Generate a fake csproj for legacy ASP.NET WebSite projects in a .sln.",
   "type": "commonjs",
   "bin": {
