@@ -244,7 +244,7 @@ npm publish
 
 This repository includes a GitHub Actions workflow at `.github/workflows/publish.yml`.
 
-It publishes when:
+It runs when:
 
 - you run the workflow manually from GitHub Actions
 - you push a tag such as `v0.2.0`
@@ -262,4 +262,12 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The workflow will install dependencies, run tests, and then publish to npm.
+The workflow will:
+
+- install dependencies
+- run tests
+- publish the npm package
+- build a Windows `exe`
+- attach the Windows `exe` and `.zip` to the GitHub Release when triggered by a version tag
+
+The Windows executable is built with Node.js Single Executable Applications (SEA), so Windows users can download it from GitHub Releases without installing Node first.
