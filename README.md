@@ -239,3 +239,27 @@ Publish to npm:
 ```bash
 npm publish
 ```
+
+## GitHub Actions Publish
+
+This repository includes a GitHub Actions workflow at `.github/workflows/publish.yml`.
+
+It publishes when:
+
+- you run the workflow manually from GitHub Actions
+- you push a tag such as `v0.2.0`
+
+Required setup:
+
+1. Create an npm granular access token with publish permission
+2. If your npm account requires it, make sure the token supports bypass 2FA
+3. Add the token to the GitHub repository secrets as `NPM_TOKEN`
+
+Suggested release flow:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The workflow will install dependencies, run tests, and then publish to npm.
