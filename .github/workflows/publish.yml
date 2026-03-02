@@ -7,8 +7,31 @@ on:
       - 'v*'
 
 jobs:
-  publish-npm:
+  verify:
     runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+  publish-npm:
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-latest
+    needs: verify
     permissions:
       contents: read
 
@@ -26,9 +49,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run tests
-        run: npm test
-
       - name: Publish package
         run: npm publish
         env:
@@ -36,7 +56,7 @@ jobs:
 
   build-windows-exe:
     runs-on: windows-latest
-    needs: publish-npm
+    needs: verify
     permissions:
       contents: write
 
@@ -52,9 +72,6 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
-
-      - name: Run tests
-        run: npm test
 
       - name: Prepare dist directory
         shell: pwsh

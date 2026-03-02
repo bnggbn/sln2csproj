@@ -262,12 +262,15 @@ git tag v0.2.0
 git push origin v0.2.0
 ```
 
-The workflow will:
+The workflow will always:
 
 - install dependencies
 - run tests
-- publish the npm package
 - build a Windows `exe`
-- attach the Windows `exe` and `.zip` to the GitHub Release when triggered by a version tag
+
+When triggered by a version tag such as `v0.3.0`, it will also:
+
+- publish the npm package
+- attach the Windows `exe` and `.zip` to the GitHub Release
 
 The Windows executable is built with Node.js Single Executable Applications (SEA), so Windows users can download it from GitHub Releases without installing Node first.
