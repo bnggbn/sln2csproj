@@ -1,4 +1,4 @@
-﻿import { CSharpProject, ProjectReference, SlnProjectBlock, WebsiteProject } from './types';
+import { CSharpProject, ProjectReference, SlnProjectBlock, WebsiteProject } from './types';
 
 const WEBSITE_TYPE_GUID = 'E24C65DC-7377-472B-9ABA-BC803B73C61A';
 const CSHARP_LEGACY_TYPE_GUID = 'FAE04EC0-301F-11D3-BF4B-00C04F79EFBC';
@@ -6,31 +6,70 @@ const CSHARP_SDK_TYPE_GUID = '9A19103F-16F7-4668-BE54-9A1E7A4F7556';
 
 export function splitSlnProjects(slnContent: string): SlnProjectBlock[] {
   const blocks: SlnProjectBlock[] = [];
-  const re = /Project\("?\{([0-9A-Fa-f\-]+)\}"?\)\s*=\s*"([^"]+)",\s*"([^"]+)",\s*"\{([0-9A-Fa-f\-]+)\}"[\s\S]*?EndProject/g;
+  const lineRe = /^.*(?:\r?\n|$)/gm;
+  const projectHeaderRe = /^Project\("?\{([0-9A-Fa-f\-]+)\}"?\)\s*=\s*"([^"]+)",\s*"([^"]+)",\s*"\{([0-9A-Fa-f\-]+)\}"\s*$/;
 
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(slnContent)) !== null) {
-    blocks.push({
-      typeGuid: m[1],
-      name: m[2],
-      relPath: m[3],
-      guid: m[4],
-      rawBlock: m[0],
-    });
+  let activeStart = -1;
+  let activeMeta: Omit<SlnProjectBlock, 'rawBlock'> | null = null;
+  let match: RegExpExecArray | null;
+
+  while ((match = lineRe.exec(slnContent)) !== null) {
+    const fullLine = match[0];
+    if (fullLine.length === 0) break;
+
+    const line = fullLine.replace(/\r?\n$/, '');
+
+    if (!activeMeta) {
+      const header = line.trim().match(projectHeaderRe);
+      if (!header) continue;
+
+      activeStart = match.index;
+      activeMeta = {
+        typeGuid: header[1],
+        name: header[2],
+        relPath: header[3],
+        guid: header[4],
+      };
+      continue;
+    }
+
+    if (/^\s*EndProject\s*$/.test(line)) {
+      blocks.push({
+        ...activeMeta,
+        rawBlock: slnContent.slice(activeStart, match.index + line.length),
+      });
+      activeStart = -1;
+      activeMeta = null;
+    }
   }
+
   return blocks;
 }
 
 function parseWebsiteProperties(block: string): Record<string, string> {
   const props: Record<string, string> = {};
-  const m = block.match(/ProjectSection\(WebsiteProperties\)\s*=\s*preProject([\s\S]*?)EndProjectSection/);
-  if (!m) return props;
+  const lines = block.split(/\r?\n/);
+  let inWebsiteProperties = false;
 
-  for (const line of m[1].split(/\r?\n/)) {
-    const lm = line.match(/^\s*([A-Za-z0-9\.\-_]+)\s*=\s*"([^"]*)"\s*$/);
-    if (!lm) continue;
-    props[lm[1]] = lm[2];
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (!inWebsiteProperties) {
+      if (/^ProjectSection\(WebsiteProperties\)\s*=\s*preProject\s*$/i.test(line)) {
+        inWebsiteProperties = true;
+      }
+      continue;
+    }
+
+    if (/^EndProjectSection\s*$/i.test(line)) {
+      break;
+    }
+
+    const match = rawLine.match(/^\s*([A-Za-z0-9.\-_]+)\s*=\s*"([^"]*)"\s*$/);
+    if (!match) continue;
+    props[match[1]] = match[2];
   }
+
   return props;
 }
 

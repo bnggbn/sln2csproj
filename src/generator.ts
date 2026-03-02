@@ -38,9 +38,9 @@ export function generateFakeCsproj(
     return `    <Content Include="${inc}" />`;
   }).join('\n');
 
-  const references = website.projectReferences.map(ref => {
-    const includeName = esc(ref.dllName.replace(/\.dll$/i, ''));
-    const hint = esc(hintByDll.get(ref.dllName) || path.join(prefix, 'Bin', ref.dllName)).replace(/\//g, '\\');
+  const references = Array.from(hintByDll.entries()).map(([dllName, hintPath]) => {
+    const includeName = esc(dllName.replace(/\.dll$/i, ''));
+    const hint = esc(hintPath || path.join(prefix, 'Bin', dllName)).replace(/\//g, '\\');
 
     return `    <Reference Include="${includeName}">
       <HintPath>${hint}</HintPath>
